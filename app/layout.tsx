@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import ChatbotWidget from "@/components/ChatbotWidget";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,20 +32,34 @@ export default function RootLayout({
       >
         <header className="w-full bg-white/80 backdrop-blur border-b">
           <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-            <Link href="/" className="text-gray-900 font-semibold">
-              Resume Parser
+            <Link href="/" className="flex items-center gap-2 text-gray-900 font-semibold">
+              <Image src="/TalentMatch%20logo.jpg" alt="TalentMatch logo" width={60} height={60} />
+              <span>TalentMatch</span>
             </Link>
             <nav className="flex items-center gap-3">
+              <Link
+                href="/"
+                className="inline-flex items-center px-3 py-1.5 rounded-md bg-gray-900 text-white text-sm hover:bg-gray-800 transition-colors"
+              >
+                Resume Screening
+              </Link>
               <Link
                 href="/ai-interviewer"
                 className="inline-flex items-center px-3 py-1.5 rounded-md bg-purple-600 text-white text-sm hover:bg-purple-700 transition-colors"
               >
                 AI Interview
               </Link>
+              <Link
+                href="/onboarding-builder"
+                className="inline-flex items-center px-3 py-1.5 rounded-md bg-blue-600 text-white text-sm hover:bg-blue-700 transition-colors"
+              >
+                Onboarding Builder
+              </Link>
             </nav>
           </div>
         </header>
         {children}
+        <ChatbotWidget />
       </body>
     </html>
   );
