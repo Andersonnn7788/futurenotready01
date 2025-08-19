@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -27,6 +28,21 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <header className="w-full bg-white/80 backdrop-blur border-b">
+          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+            <Link href="/" className="text-gray-900 font-semibold">
+              Resume Parser
+            </Link>
+            <nav className="flex items-center gap-3">
+              <Link
+                href="/ai-interviewer"
+                className="inline-flex items-center px-3 py-1.5 rounded-md bg-purple-600 text-white text-sm hover:bg-purple-700 transition-colors"
+              >
+                AI Interview
+              </Link>
+            </nav>
+          </div>
+        </header>
         {children}
       </body>
     </html>
