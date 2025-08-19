@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.55.0",
     "@types/multer": "^2.0.0",
     "multer": "^2.0.2",
     "next": "15.4.6",
