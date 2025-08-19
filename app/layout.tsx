@@ -33,8 +33,8 @@ export default function RootLayout({
         <header className="w-full bg-white/80 backdrop-blur border-b">
           <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 text-gray-900 font-semibold">
-              <Image src="/TalentMatch%20logo.jpg" alt="TalentMatch logo" width={60} height={60} />
-              <span>TalentMatch</span>
+              <Image src="/TalentMatch%20logo.jpg" alt="TalentMatch logo" width={70} height={70} />
+              <span className="text-4xl font-bold">TalentMatch</span>
             </Link>
             <nav className="flex items-center gap-3">
               <Link
