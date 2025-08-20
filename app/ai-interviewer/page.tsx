@@ -16,10 +16,14 @@ export default function AIInterviewerPage() {
   const localAudioRef = useRef<HTMLAudioElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
+  const recognitionRef = useRef<any>(null);
   const [connected, setConnected] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summary, setSummary] = useState<any>(null);
+  // Buffer AI streaming text to avoid duplicate/delta spam
+  const aiBufferRef = useRef<string>('');
+  const aiStreamingRef = useRef<boolean>(false);
 
   // Append a line to transcript
   const addLine = useCallback((item: TranscriptItem) => {
@@ -65,6 +69,33 @@ export default function AIInterviewerPage() {
 
       // Create data channel for transcript text messages
       const dc = pc.createDataChannel('oai-events');
+      dc.onopen = () => {
+        try {
+          // Enforce strict turn-taking so the interviewer pauses for the candidate
+          const sessionUpdate = {
+            type: 'session.update',
+            session: {
+              // Ask exactly one question at a time, then wait silently for the candidate.
+              instructions:
+                'You are an AI interviewer. Always ask exactly ONE concise question, then stop speaking and wait in silence for the candidate to answer. Do not chain multiple questions together. Only speak again after the candidate has spoken. If there is no candidate speech for ~20 seconds, give a short gentle nudge like "Whenever you are ready, please share your answer," then wait again. Keep a calm pace and natural pauses.',
+              // Keep server-side VAD enabled to detect when the candidate starts/stops speaking.
+              // These values are conservative to avoid talking over the candidate.
+              turn_detection: { type: 'server_vad', threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 800 }
+            }
+          } as any;
+          dc.send(JSON.stringify(sessionUpdate));
+
+          const initialPrompt = {
+            type: 'response.create',
+            response: {
+              modalities: ['text', 'audio'],
+              instructions:
+                'Start with a brief greeting, then ask the first concise question about how the candidate solved a tough technical problem. After asking, pause and wait for their response.'
+            }
+          } as any;
+          dc.send(JSON.stringify(initialPrompt));
+        } catch {}
+      };
       dc.onmessage = (e) => {
         try {
           const dataStr = typeof e.data === 'string' ? e.data : '' + e.data;
@@ -73,28 +104,42 @@ export default function AIInterviewerPage() {
           // Normalize helper
           const pushAI = (text: string) => text && addLine({ speaker: 'Interviewer', text });
           const pushUser = (text: string) => text && addLine({ speaker: 'Candidate', text });
+          const extractText = (m: any) =>
+            (m?.text || m?.delta || m?.output_text || m?.transcript || m?.audio_transcript || m?.response?.output_text || '');
 
           if (!msg || !msg.type) return;
 
-          // 1) Transcription lines from candidate
+          // 1) Explicit user-side transcription events
           if (
-            (msg.type.includes('transcript') && (msg.text || msg.delta)) ||
-            msg.type === 'conversation.item.input_audio_transcription.completed'
+            msg.type === 'conversation.item.input_audio_transcription.completed' ||
+            (typeof msg.type === 'string' && msg.type.startsWith('input_audio_transcription.'))
           ) {
             const text = msg.text || msg.delta || msg?.transcript || msg?.content || '';
             pushUser(text);
             return;
           }
 
-          // 2) Assistant textual deltas
-          if (
-            msg.type === 'response.text.delta' ||
-            msg.type === 'response.delta' ||
-            msg.type === 'response.output_text.delta' ||
-            msg.type === 'response.completed'
-          ) {
-            const text = msg.text || msg.delta || msg.output_text || msg?.response?.output_text || '';
-            pushAI(text);
+          // 2) Assistant streaming text - buffer deltas and flush on completion
+          if (typeof msg.type === 'string' && msg.type.startsWith('response.')) {
+            const t = msg.type as string;
+            // Accumulate only output_text deltas
+            if (t.endsWith('.delta')) {
+              const delta = (typeof msg.delta === 'string' ? msg.delta : '') || '';
+              if (delta) {
+                aiStreamingRef.current = true;
+                aiBufferRef.current += delta;
+              }
+              return;
+            }
+            // Flush when response is completed/done
+            if (t.endsWith('.done') || t.endsWith('completed')) {
+              const out = aiBufferRef.current.trim();
+              if (out) pushAI(out);
+              aiBufferRef.current = '';
+              aiStreamingRef.current = false;
+              return;
+            }
+            // Ignore other response.* events to avoid duplicate text
             return;
           }
 
@@ -109,8 +154,8 @@ export default function AIInterviewerPage() {
               if (typeof c?.text === 'string') text += (text ? ' ' : '') + c.text;
               if (typeof c?.transcript === 'string') text += (text ? ' ' : '') + c.transcript;
             }
+            // Only push user items. Assistant items are already handled via response.* buffer.
             if (role === 'user') pushUser(text);
-            else pushAI(text);
             return;
           }
         } catch (err) {
@@ -135,6 +180,37 @@ export default function AIInterviewerPage() {
       });
       const answerSdp = await sdpResp.text();
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+
+      // Start local speech recognition to capture user's spoken words as text
+      try {
+        const SR = (typeof window !== 'undefined' && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)) || null;
+        if (SR) {
+          const rec = new SR();
+          recognitionRef.current = rec;
+          rec.lang = 'en-US';
+          rec.interimResults = true;
+          rec.continuous = true;
+          let interim = '';
+          rec.onresult = (event: any) => {
+            let finalChunk = '';
+            interim = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const res = event.results[i];
+              if (res.isFinal) finalChunk += res[0].transcript;
+              else interim += res[0].transcript;
+            }
+            if (finalChunk) addLine({ speaker: 'Candidate', text: finalChunk.trim() });
+          };
+          rec.onerror = () => {};
+          rec.onend = () => {
+            // Keep it running while connected
+            if (pcRef.current) {
+              try { rec.start(); } catch {}
+            }
+          };
+          try { rec.start(); } catch {}
+        }
+      } catch {}
     } catch (e) {
       console.error(e);
       alert('Failed to start the interview. Check console and API key.');
@@ -148,6 +224,13 @@ export default function AIInterviewerPage() {
       pc.close();
     }
     pcRef.current = null;
+    try {
+      const rec = recognitionRef.current;
+      if (rec) {
+        rec.onend = null;
+        rec.stop();
+      }
+    } catch {}
     setConnected(false);
   }, []);
 
@@ -188,11 +271,21 @@ export default function AIInterviewerPage() {
     return out;
   }, [transcript]);
 
+  // Persist latest conversation so the review page can retrieve it
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('latest_interview_conversation_v1', JSON.stringify(grouped));
+        localStorage.setItem('latest_interview_transcript_v1', JSON.stringify(transcript));
+      }
+    } catch {}
+  }, [grouped, transcript]);
+
   return (
     <div className="mx-auto max-w-6xl p-4 md:p-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[70vh]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[70vh]">
         {/* Chat column */}
-        <div className="lg:col-span-2 bg-white/70 backdrop-blur rounded-xl border shadow-sm flex flex-col overflow-hidden">
+        <div className="lg:col-span-2 bg-white/70 backdrop-blur rounded-xl border shadow-sm flex flex-col overflow-hidden h-full">
           <div className="px-4 py-3 border-b flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-full bg-purple-600 text-white grid place-items-center">AI</div>
@@ -213,7 +306,7 @@ export default function AIInterviewerPage() {
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-br from-gray-50 to-gray-100">
             {grouped.length === 0 && (
-              <div className="text-center text-gray-500 text-sm mt-10">Tap the mic to begin your interview.</div>
+              <div className="text-center text-gray-500 text-sm mt-10">Press Start to begin your interview.</div>
             )}
             {grouped.map((m, idx) => {
               const isAI = m.speaker === 'Interviewer' || m.speaker === 'assistant';
@@ -228,25 +321,24 @@ export default function AIInterviewerPage() {
             })}
           </div>
 
-          {/* Mic control */}
-          <div className="relative border-t p-6 grid place-items-center">
+          {/* Controls */}
+          <div className="relative border-t p-6 flex items-center justify-center gap-4">
             <button
-              onClick={connected ? stopSession : startSession}
-              className="relative h-20 w-20 rounded-full bg-gradient-to-br from-green-200 to-green-400 text-green-900 shadow hover:scale-[1.02] transition-transform"
-              aria-label={connected ? 'End interview' : 'Start interview'}
+              onClick={startSession}
+              disabled={connected}
+              className="px-5 py-2 rounded-md bg-green-600 disabled:bg-green-300 text-white shadow hover:bg-green-700"
+              aria-label="Start interview"
             >
-              {connected && (
-                <>
-                  <span className="absolute inset-0 rounded-full ring-2 ring-green-300 animate-ping"></span>
-                  <span className="absolute -inset-3 rounded-full bg-green-100/30"></span>
-                </>
-              )}
-              <svg className="h-8 w-8 m-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path d="M12 1a3 3 0 00-3 3v7a3 3 0 006 0V4a3 3 0 00-3-3z" strokeWidth="1.5"/>
-                <path d="M19 10a7 7 0 01-14 0M12 17v6" strokeWidth="1.5"/>
-              </svg>
+              Start
             </button>
-            <div className="mt-3 text-xs text-gray-500">{connected ? 'Listening… speak naturally' : 'Tap to start'}</div>
+            <button
+              onClick={stopSession}
+              disabled={!connected}
+              className="px-5 py-2 rounded-md bg-red-600 disabled:bg-red-300 text-white shadow hover:bg-red-700"
+              aria-label="End interview"
+            >
+              End
+            </button>
             {/* Hidden audio elements */}
             <audio ref={localAudioRef} autoPlay muted className="hidden" />
             <audio ref={remoteAudioRef} autoPlay className="hidden" />
