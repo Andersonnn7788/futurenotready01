@@ -55,6 +55,12 @@ export default function RootLayout({
               >
                 Onboarding Builder
               </Link>
+              <Link
+                href="/candidate-follow-up"
+                className="inline-flex items-center px-3 py-1.5 rounded-md bg-green-600 text-white text-sm hover:bg-green-700 transition-colors"
+              >
+                Candidate Follow Up
+              </Link>
             </nav>
           </div>
         </header>
