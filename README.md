@@ -1,5 +1,5 @@
 # TalentMatch
-TalentMatch is a hiring platform that provides an efficient, accurate and streamlined hiring process for employers & general companies.
+TalentMatch is an AI-powered hiring platform that provides an efficient, accurate and streamlined hiring process for employers & general companies.
 
 ## Team Members
 Ling Jing Jie, 
