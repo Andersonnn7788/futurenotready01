@@ -77,35 +77,25 @@ npm run dev
 ## Reflection on Challenges & Learnings
 **Challenges Faced:**
 
-- **Resume Data Extraction**
-Parsing resumes with different formats (PDF, DOCX, inconsistent structures) was difficult. Ensuring clean text for NLP/LLM processing required experimenting with multiple parsing libraries.
+- **Resume Data Extraction:** Parsing resumes with different formats (PDF, DOCX, inconsistent structures) was difficult. Ensuring clean text for NLP/LLM processing required experimenting with multiple parsing libraries.
 
-- **LLM Integration & Costs**
-Integrating OpenAI GPT-4o mini and GPT-4o (Realtime Preview) required handling API rate limits, response delays, and cost management while still maintaining accuracy.
+- **LLM Integration & Costs:** Integrating OpenAI GPT-4o mini and GPT-4o (Realtime Preview) required handling API rate limits, response delays, and cost management while still maintaining accuracy.
 
-- **Voice Agent Stability**
-Setting up the GPT voice-to-voice agent was challenging, especially syncing input/output streams without duplications or interruptions during interviews.
+- **Voice Agent Stability:** Setting up the GPT voice-to-voice agent was challenging, especially syncing input/output streams without duplications or interruptions during interviews.
 
-- **ML Model Deployment**
-Training and serving our self-built ML model (candidate retention prediction) via FastAPI involved challenges in handling class imbalance, tuning hyperparameters, and ensuring low-latency inference.
+- **ML Model Deployment:** Training and serving our self-built ML model (candidate retention prediction) via FastAPI involved challenges in handling class imbalance, tuning hyperparameters, and ensuring low-latency inference.
 
-- **System Integration**
-Connecting multiple moving parts—frontend (Next.js + React), backend (FastAPI), database (Supabase), and AI models—required careful API design, data flow planning, and debugging cross-service communication.
+- **System Integration:** Connecting multiple moving parts—frontend (Next.js + React), backend (FastAPI), database (Supabase), and AI models—required careful API design, data flow planning, and debugging cross-service communication.
 
 **Key Learnings:**
 
-- **Practical NLP + LLM Usage**
-Learned how to combine traditional NLP with LLMs (GPT-4o mini) to build a hybrid pipeline that balances efficiency with deep contextual understanding.
+- **Practical NLP + LLM Usage:** Learned how to combine traditional NLP with LLMs (GPT-4o mini) to build a hybrid pipeline that balances efficiency with deep contextual understanding.
 
-- **Real-Time AI Voice Interaction**
-Gained hands-on experience with GPT-4o Realtime Preview for building conversational AI agents that simulate interviews, while also learning how to mitigate technical glitches.
+- **Real-Time AI Voice Interaction:** Gained hands-on experience with GPT-4o Realtime Preview for building conversational AI agents that simulate interviews, while also learning how to mitigate technical glitches.
 
-- **ML Model Deployment**
-Strengthened skills in deploying machine learning models in production environments using FastAPI, improving model serving, API handling, and monitoring.
+- **ML Model Deployment:** Strengthened skills in deploying machine learning models in production environments using FastAPI, improving model serving, API handling, and monitoring.
 
-- **System Scalability & Design**
-Understood the importance of modular architecture: separating resume screening, interview agent, and onboarding chatbot into distinct services made the system easier to debug and extend.
+- **System Scalability & Design:** Understood the importance of modular architecture: separating resume screening, interview agent, and onboarding chatbot into distinct services made the system easier to debug and extend.
 
-- **Teamwork & Hackathon Execution**
-Learned to divide responsibilities effectively (frontend, backend, ML, statistics, planning), manage time pressure, and deliver a functional MVP within tight deadlines.
+- **Teamwork & Hackathon Execution:** Learned to divide responsibilities effectively (frontend, backend, ML, statistics, planning), manage time pressure, and deliver a functional MVP within tight deadlines.
 
