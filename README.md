@@ -42,3 +42,36 @@ Our project integrates Full-Stack Web Development, Machine Learning, and AI/LLM 
 2. AI Voice Agent (Realtime Preview) → Conducting AI-assisted interviews with natural conversation flow
 3. RAG-Powered Chatbot → Answering candidate queries accurately using retrieval-augmented generation(chatbot retrieves info from company docs or policies before answering)
 
+## Setup Instructions
+
+### Prerequisites
+- Node.js 18.18+ or 20+ (recommended)
+- npm 10+
+- An OpenAI API key with access to GPT-4o/GPT-4o Realtime preview models
+
+### 1) Clone and install
+```bash
+git clone https://github.com/Andersonnn7788/futurenotready01.git
+cd futurenotready01
+npm install
+```
+
+### 2) Configure environment variables
+Create a file named `.env.local` in the repository root:
+
+```bash
+# Required: used by all AI features and API routes
+OPENAI_API_KEY=sk-...
+
+# Supabase setup
+SUPABASE_URL=...
+SUPABASE_ANON_KEY=...
+```
+
+### 3) Run the app
+```bash
+npm run dev
+# Open http://localhost:3000
+```
+
+
