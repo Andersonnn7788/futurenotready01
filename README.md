@@ -92,7 +92,7 @@ Training and serving our self-built ML model (candidate retention prediction) vi
 - **System Integration**
 Connecting multiple moving parts—frontend (Next.js + React), backend (FastAPI), database (Supabase), and AI models—required careful API design, data flow planning, and debugging cross-service communication.
 
-**Key Learnings**
+**Key Learnings:**
 
 - **Practical NLP + LLM Usage**
 Learned how to combine traditional NLP with LLMs (GPT-4o mini) to build a hybrid pipeline that balances efficiency with deep contextual understanding.
