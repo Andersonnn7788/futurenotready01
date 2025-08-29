@@ -22,4 +22,23 @@ Fong Yi Ann
 3. **AI-Assisted Interview with Human Oversight**
 - Conducts structured, AI-driven interviews that save HR/MD time while ensuring human review/validation of the interview content, improving efficiency without compromising quality.
 
+## Technology Stack
+Our project integrates Full-Stack Web Development, Machine Learning, and AI/LLM Models to optimize talent acquisition and onboarding.
+
+**Frontend (Full Stack):**
+- Next.js – Server-side rendering & routing for a smooth user experience
+- React – Component-based UI development
+- TypeScript – Strongly typed code for reliability and scalability
+- Tailwind CSS – Rapid and responsive styling
+
+**Backend & Database:**
+- Supabase – Database and storage solution for handling candidate data and interview logs
+- FastAPI (Python) – High-performance backend framework for serving ML models
+
+**Machine Learning & AI:**
+- Python (ML System) – Custom-trained model to predict whether a candidate will stay in the company for more than 1 year
+- OpenAI GPT-4o Mini – Used for:
+1. Smart Resume Screening (NLP + LLM) → Parsing resumes, generating summaries, and highlighting strengths/weaknesses
+2. AI Voice Agent (Realtime Preview) → Conducting AI-assisted interviews with natural conversation flow
+3. RAG-Powered Chatbot → Answering candidate queries accurately using retrieval-augmented generation(chatbot retrieves info from company docs or policies before answering)
 
