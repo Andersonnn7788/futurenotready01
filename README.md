@@ -5,7 +5,7 @@ TalentMatch is an AI-powered hiring platform that provides an efficient, accurat
 Ling Jing Jie, 
 William Chai Tian Wei, 
 Wong Xuan Rui, 
-Mo Hangyu, 
+Mo Hang Yu, 
 Fong Yi Ann 
 
 ## Problem and Solution Summary
