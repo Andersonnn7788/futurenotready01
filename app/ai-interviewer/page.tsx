@@ -17,6 +17,10 @@ export default function AIInterviewerPage() {
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const recognitionRef = useRef<any>(null);
+  const recognitionActiveRef = useRef(false);
+  const recognitionShouldRestartRef = useRef(true);
+  const recognitionCapturingRef = useRef(true);
+  const recognitionResumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [connected, setConnected] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [isSummarizing, setIsSummarizing] = useState(false);
@@ -24,11 +28,51 @@ export default function AIInterviewerPage() {
   // Buffer AI streaming text to avoid duplicate/delta spam
   const aiBufferRef = useRef<string>('');
   const aiStreamingRef = useRef<boolean>(false);
+  const aiLastDeltaRef = useRef<string>('');
 
   // Append a line to transcript
   const addLine = useCallback((item: TranscriptItem) => {
     setTranscript(prev => [...prev, { ...item, ts: Date.now() }]);
   }, []);
+
+  const clearRecognitionResumeTimeout = useCallback(() => {
+    if (recognitionResumeTimeoutRef.current) {
+      clearTimeout(recognitionResumeTimeoutRef.current);
+      recognitionResumeTimeoutRef.current = null;
+    }
+  }, []);
+
+  const pauseRecognition = useCallback(() => {
+    recognitionShouldRestartRef.current = false;
+    recognitionCapturingRef.current = false;
+    clearRecognitionResumeTimeout();
+    const rec = recognitionRef.current;
+    if (rec) {
+      try {
+        rec.stop();
+      } catch {}
+    }
+  }, [clearRecognitionResumeTimeout]);
+
+  const resumeRecognition = useCallback((delayMs: number = 250) => {
+    recognitionCapturingRef.current = true;
+    recognitionShouldRestartRef.current = true;
+    const rec = recognitionRef.current;
+    if (!rec) return;
+    clearRecognitionResumeTimeout();
+    const start = () => {
+      if (!recognitionActiveRef.current) {
+        try {
+          rec.start();
+        } catch {}
+      }
+    };
+    if (delayMs > 0) {
+      recognitionResumeTimeoutRef.current = setTimeout(start, delayMs);
+    } else {
+      start();
+    }
+  }, [clearRecognitionResumeTimeout]);
 
   const startSession = useCallback(async () => {
     try {
@@ -59,12 +103,25 @@ export default function AIInterviewerPage() {
       };
 
       // Get mic
-      const localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (localAudioRef.current) {
+      let localStream: MediaStream | null = null;
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        console.error('Microphone permission error', err);
+        try { pc.close(); } catch {}
+        pcRef.current = null;
+        setConnected(false);
+        addLine({ speaker: 'System', text: 'Microphone access was dismissed. Please allow microphone permission and try again.' });
+        alert('Microphone permission was dismissed. Please allow access and start the interview again.');
+        return;
+      }
+      if (localAudioRef.current && localStream) {
         localAudioRef.current.srcObject = localStream;
       }
-      for (const track of localStream.getTracks()) {
-        pc.addTrack(track, localStream);
+      if (localStream) {
+        for (const track of localStream.getTracks()) {
+          pc.addTrack(track, localStream);
+        }
       }
 
       // Create data channel for transcript text messages
@@ -124,10 +181,26 @@ export default function AIInterviewerPage() {
             const t = msg.type as string;
             // Accumulate only output_text deltas
             if (t.endsWith('.delta')) {
-              const delta = (typeof msg.delta === 'string' ? msg.delta : '') || '';
-              if (delta) {
-                aiStreamingRef.current = true;
-                aiBufferRef.current += delta;
+              const deltaRaw = (typeof msg.delta === 'string' ? msg.delta : '') || '';
+              if (deltaRaw) {
+                let addition = deltaRaw;
+                const lastFull = aiLastDeltaRef.current;
+                if (lastFull && deltaRaw.startsWith(lastFull)) {
+                  addition = deltaRaw.slice(lastFull.length);
+                } else if (lastFull && deltaRaw === lastFull) {
+                  addition = '';
+                } else if (lastFull) {
+                  const idx = deltaRaw.indexOf(lastFull);
+                  if (idx >= 0) addition = deltaRaw.slice(idx + lastFull.length);
+                }
+                if (addition) {
+                  if (!aiStreamingRef.current) {
+                    aiStreamingRef.current = true;
+                    pauseRecognition();
+                  }
+                  aiBufferRef.current += addition;
+                }
+                aiLastDeltaRef.current = deltaRaw;
               }
               return;
             }
@@ -136,7 +209,10 @@ export default function AIInterviewerPage() {
               const out = aiBufferRef.current.trim();
               if (out) pushAI(out);
               aiBufferRef.current = '';
+              aiLastDeltaRef.current = '';
+              const wasStreaming = aiStreamingRef.current;
               aiStreamingRef.current = false;
+              if (wasStreaming) resumeRecognition();
               return;
             }
             // Ignore other response.* events to avoid duplicate text
@@ -190,8 +266,16 @@ export default function AIInterviewerPage() {
           rec.lang = 'en-US';
           rec.interimResults = true;
           rec.continuous = true;
+          recognitionShouldRestartRef.current = true;
+          recognitionCapturingRef.current = true;
+          recognitionActiveRef.current = false;
+          clearRecognitionResumeTimeout();
           let interim = '';
+          rec.onstart = () => {
+            recognitionActiveRef.current = true;
+          };
           rec.onresult = (event: any) => {
+            if (!recognitionCapturingRef.current) return;
             let finalChunk = '';
             interim = '';
             for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -199,12 +283,13 @@ export default function AIInterviewerPage() {
               if (res.isFinal) finalChunk += res[0].transcript;
               else interim += res[0].transcript;
             }
-            if (finalChunk) addLine({ speaker: 'Candidate', text: finalChunk.trim() });
+            const trimmed = finalChunk.trim();
+            if (trimmed) addLine({ speaker: 'Candidate', text: trimmed });
           };
           rec.onerror = () => {};
           rec.onend = () => {
-            // Keep it running while connected
-            if (pcRef.current) {
+            recognitionActiveRef.current = false;
+            if (pcRef.current && recognitionShouldRestartRef.current) {
               try { rec.start(); } catch {}
             }
           };
@@ -215,7 +300,7 @@ export default function AIInterviewerPage() {
       console.error(e);
       alert('Failed to start the interview. Check console and API key.');
     }
-  }, [addLine]);
+  }, [addLine, pauseRecognition, resumeRecognition]);
 
   const stopSession = useCallback(() => {
     const pc = pcRef.current;
@@ -224,15 +309,22 @@ export default function AIInterviewerPage() {
       pc.close();
     }
     pcRef.current = null;
-    try {
-      const rec = recognitionRef.current;
-      if (rec) {
-        rec.onend = null;
-        rec.stop();
-      }
-    } catch {}
+    pauseRecognition();
+    const rec = recognitionRef.current;
+    if (rec) {
+      rec.onend = null;
+      rec.onstart = null;
+      rec.onresult = null;
+      rec.onerror = null;
+      try { rec.stop(); } catch {}
+    }
+    recognitionRef.current = null;
+    recognitionActiveRef.current = false;
+    aiBufferRef.current = '';
+    aiLastDeltaRef.current = '';
+    aiStreamingRef.current = false;
     setConnected(false);
-  }, []);
+  }, [pauseRecognition]);
 
   const summarize = useCallback(async () => {
     try {

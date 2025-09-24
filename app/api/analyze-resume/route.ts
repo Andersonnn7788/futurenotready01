@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-// Ensure this runs in Node.js runtime, not Edge runtime
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
-    // Read and sanitize API key (trim to avoid trailing newline/space issues on Windows/macOS)
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) {
       return NextResponse.json(
@@ -16,7 +14,6 @@ export async function POST(request: NextRequest) {
     }
 
     const openai = new OpenAI({ apiKey });
-
     const { text } = await request.json();
 
     if (!text) {
@@ -25,8 +22,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    // API key already validated above
 
     const prompt = `
 Analyze the following resume text and return ONLY a strict JSON object with exactly these fields and no others:
@@ -46,46 +41,66 @@ Rules:
 Resume Text:
 ${text}`;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
+    const response = await openai.responses.create({
+      model: 'gpt-4o-mini',
+      input: [
         {
-          role: "system",
-          content: "You are an expert in helping the employer to analyze the resume of the candidate. Analyze resumes thoroughly and provide constructive feedback."
+          role: 'system',
+          content: [
+            {
+              type: "input_text",
+              text: 'You are an expert in helping the employer to analyze the resume of the candidate. Analyze resumes thoroughly and provide constructive feedback.'
+            }
+          ]
         },
         {
-          role: "user",
-          content: prompt
+          role: 'user',
+          content: [{ type: 'input_text', text: prompt }]
         }
       ],
       temperature: 0.3,
-      max_tokens: 2000,
+      max_output_tokens: 2000
     });
 
-    const analysisText = completion.choices[0]?.message?.content;
-    
+    let analysisText = (response.output_text ?? '').trim();
+
+    if (!analysisText && Array.isArray(response.output)) {
+      analysisText = response.output
+        .map((item: any) => {
+          if (!Array.isArray(item?.content)) return '';
+          return item.content
+            .map((part: any) =>
+              typeof part?.text === 'string'
+                ? part.text
+                : typeof part?.output_text === 'string'
+                ? part.output_text
+                : ''
+            )
+            .join('');
+        })
+        .join('')
+        .trim();
+    }
+
     if (!analysisText) {
       throw new Error('No response from OpenAI');
     }
 
-    // Try to parse the JSON response
     let analysis;
     try {
       analysis = JSON.parse(analysisText);
-    } catch (parseError) {
-      // If JSON parsing fails, return the raw text
+    } catch {
       analysis = {
-        summary: "Analysis completed",
+        summary: 'Analysis completed',
         raw_analysis: analysisText,
-        error: "Failed to parse structured response"
+        error: 'Failed to parse structured response'
       };
     }
 
     return NextResponse.json({
       analysis,
-      usage: completion.usage
+      usage: response.usage ?? null
     });
-
   } catch (error) {
     console.error('Error analyzing resume:', error);
     const message =
