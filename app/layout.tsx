@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TalentMatch - AI-Powered Hiring Platform",
+  title: "TalentMatch",
   description: "Streamline your hiring process with AI-powered resume screening, interviews, and onboarding tools.",
 };
 
